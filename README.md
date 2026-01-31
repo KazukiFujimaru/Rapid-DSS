@@ -1,64 +1,49 @@
-# flask-app-vercel
+# 🚀 Rapid DSS
 
-![Flask](https://img.shields.io/badge/Flask-000000?style=for-the-badge&logo=flask&logoColor=white)
-![Vercel](https://img.shields.io/badge/vercel-%23000000.svg?style=for-the-badge&logo=vercel&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.9%2B-blue)
+![Flask](https://img.shields.io/badge/Framework-Flask-green)
+![Status](https://img.shields.io/badge/Status-Active-success)
 
-Flask application templates hosted on Vercel, included with unit testing and Python modules.
+**Rapid DSS** adalah aplikasi Sistem Pendukung Keputusan (Decision Support System) berbasis web yang dirancang untuk membuat Sistem Pendukung Keputusan dengan cepat. Terinspirasi dari Rapid Miner yang dikembangkan untuk Machine Learning
 
-## Structure 📂
-```
-flask-app-vercel
-├── .github
-├── handlers
-├── modules
-├── static
-│   ├── images
-│   ├── scripts
-│   └── styles
-├── templates
-├── tests
-├── .gitignore
-├── LICENSE
-├── README.md
-├── app.py
-├── requirements.txt
-└── vercel.json
-```
-- [.github](.github/) is a folder that used to place Github related stuff, like CI pipeline.
-- [handlers](handlers/) contain handler to handling HTTP request methods.
-- [modules](modules/) contain the main modules of the app.
-- [static](static/) contain static files like images, CSS, and JavaScript files.
-- [templates](templates/) contain the file that will be rendered for display in the browser.
-- [tests](tests/) contain unit test of the app.
-- [.gitignore](.gitignore) is a file to exclude some folders like venv.
-- [LICENSE](LICENSE) is a file that contains the license used in this app.
-- [README.md](README.md) is the file you are reading now.
-- [app.py](app.py) is the main file of this app.
-- [requirements.txt](requirements.txt) is a file that contains a list of dependencies used in this app.
-- [vercel.json](vercel.json) is a file that contains configuration and override the default behavior of Vercel.
+## ✨ Fitur Utama
 
-## Installation 🛠️
-- Clone the repository:
-```
-git clone https://github.com/putuwaw/flask-app-vercel.git
-```
-- Create a virtual environment:
-```
-python -m venv venv
-```
-- Activate virtual environment:
-```
-source venv/Scripts/activate
-```
-- Install dependencies:
-```
-pip install -r requirements.txt
-```
-- Run app:
-```
-python app.py
-```
-- Run test:
-```
-pytest
-```
+* **Multi-Method Support**: Untuk saat ini mendukung metode **SAW**, **WP**, **AHP**, **TOPSIS**, **PROMETHEE**, dan **MOORA**.
+* **Dynamic Configuration**: Input kriteria dan alternatif yang fleksibel (bisa tambah/kurang kolom & baris).
+* **Sensitivity Analysis**: Uji ketahanan keputusan dengan slider bobot interaktif (Real-time).
+* **Visual Comparison**: Grafik Radar dan Bar Chart untuk membandingkan kandidat head-to-head.
+* **Robustness Check**: Validasi hasil dengan membandingkan peringkat antar metode.
+
+## 🛠️ Instalasi & Menjalankan Lokal
+
+Jika Anda ingin menjalankan aplikasi ini di komputer lokal Anda:
+
+1.  **Clone repositori**
+    ```bash
+    git clone [https://github.com/username-anda/rapid-dss.git](https://github.com/username-anda/rapid-dss.git)
+    cd rapid-dss
+    ```
+
+2.  **Buat Virtual Environment (Opsional tapi disarankan)**
+    ```bash
+    python -m venv venv
+    # Windows
+    venv\Scripts\activate
+    # Mac/Linux
+    source venv/bin/activate
+    ```
+
+3.  **Install Dependencies**
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+4.  **Jalankan Aplikasi**
+    ```bash
+    python app.py
+    ```
+    Buka browser di `http://127.0.0.1:5000`
+
+## 📝 Lisensi
+
+Project ini dibuat untuk keperluan tugas dan pengembangan riset operasional.
