@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% block body %}
+<style>
+    /* CUSTOM CSS UNTUK TABEL SCROLLABLE */
+    .table-responsive {
+        overflow-x: auto; /* Aktifkan scroll horizontal */
+        white-space: nowrap; /* Cegah teks turun ke baris baru (wrapping) */
+    }
+
+    /* Agar input menyesuaikan lebar konten minimal */
+    .table input.form-control {
+        min-width: 100px; /* Lebar minimal input */
+        width: 100%;      /* Mengisi sel */
+    }
+
+    /* Header input kriteria agar sedikit lebih lebar */
+    th.group-header input {
+        min-width: 120px; 
+    }
+
+    /* Kolom No dan Aksi dibuat sempit & lengket (Sticky) opsional */
+    .col-fixed {
+        width: 50px;
+        text-align: center;
+    }
+</style>
+
+<div class="card shadow-sm border-0">
+    <div class="card-header bg-white border-bottom-0 pt-4 px-4">
+        <ul class="nav nav-tabs card-header-tabs" id="inputMethod" role="tablist">
+            <li class="nav-item">
+                <button class="nav-link active fw-bold" id="csv-tab" data-bs-toggle="tab" data-bs-target="#csv-pane" type="button">📁 Upload File CSV</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link fw-bold" id="manual-tab" data-bs-toggle="tab" data-bs-target="#manual-pane" type="button">✍️ Input Tabel Manual</button>
+            </li>
+        </ul>
+    </div>
+    
+    <div class="card-body p-4">
+        <div class="tab-content">
+            <div class="tab-pane fade show active text-center py-4" id="csv-pane">
+                <img src="https://cdn-icons-png.flaticon.com/512/28/28842.png" width="64" class="mb-3 opacity-50">
+                <h5 class="mb-3">Upload Dataset Siap Pakai</h5>
+                <p class="text-muted small">Format .csv dengan header (Baris 1 = Nama Kriteria).</p>
+                <form method="POST" enctype="multipart/form-data" class="d-inline-block text-start" style="max-width: 400px;">
+                    <div class="input-group">
+                        <input class="form-control" type="file" name="file" accept=".csv" required>
+                        <button type="submit" class="btn btn-primary">Upload &rarr;</button>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="tab-pane fade" id="manual-pane">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0">Input Data Alternatif & Kriteria</h5>
+                    <div>
+                        <button type="button" class="btn btn-sm btn-outline-success" onclick="addColumn()">+ Tambah Kriteria (Kolom)</button>
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="addRow()">+ Tambah Alternatif (Baris)</button>
+                    </div>
+                </div>
+
+                <div class="table-responsive mb-3 border rounded bg-light" style="max-height: 500px; overflow-y: auto;">
+                    <table class="table table-bordered mb-0 align-middle" id="dynamicTable">
+                        <thead class="bg-light sticky-top" style="z-index: 5;">
+                            <tr id="headerRow">
+                                <th class="col-fixed bg-light">#</th>
+                                <th style="min-width: 200px;" class="bg-light">Nama Alternatif</th>
+                                <th class="position-relative group-header bg-light">
+                                    <input type="text" class="form-control form-control-sm fw-bold text-center border-0 bg-transparent mb-1" value="Harga" placeholder="Nama">
+                                    <button type="button" class="btn btn-link text-danger p-0 position-absolute top-0 end-0 me-1" style="font-size: 0.7rem; text-decoration: none;" onclick="removeColumn(this)">❌</button>
+                                </th>
+                                <th class="position-relative group-header bg-light">
+                                    <input type="text" class="form-control form-control-sm fw-bold text-center border-0 bg-transparent mb-1" value="RAM" placeholder="Nama">
+                                    <button type="button" class="btn btn-link text-danger p-0 position-absolute top-0 end-0 me-1" style="font-size: 0.7rem; text-decoration: none;" onclick="removeColumn(this)">❌</button>
+                                </th>
+                                <th class="position-relative group-header bg-light">
+                                    <input type="text" class="form-control form-control-sm fw-bold text-center border-0 bg-transparent mb-1" value="Storage" placeholder="Nama">
+                                    <button type="button" class="btn btn-link text-danger p-0 position-absolute top-0 end-0 me-1" style="font-size: 0.7rem; text-decoration: none;" onclick="removeColumn(this)">❌</button>
+                                </th>
+                                <th class="col-fixed bg-light">❌</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody" class="bg-white">
+                            <tr>
+                                <td class="text-muted text-center">1</td>
+                                <td><input type="text" class="form-control form-control-sm" value="Laptop A"></td>
+                                <td><input type="number" step="any" class="form-control form-control-sm text-center" value="5000000"></td>
+                                <td><input type="number" step="any" class="form-control form-control-sm text-center" value="8"></td>
+                                <td><input type="number" step="any" class="form-control form-control-sm text-center" value="256"></td>
+                                <td class="text-center"><button class="btn btn-link text-danger p-0" onclick="removeRow(this)">×</button></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <form method="POST" id="manualForm" onsubmit="prepareData(event)">
+                    <input type="hidden" name="manual_data" id="manualDataInput">
+                    <button type="submit" class="btn btn-primary w-100 py-2">Proses Data & Lanjut Konfigurasi &rarr;</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 1. Tambah Kolom (Kriteria)
+    function addColumn() {
+        const headerRow = document.getElementById('headerRow');
+        const deleteHeaderCell = headerRow.lastElementChild;
+        
+        const newTh = document.createElement('th');
+        newTh.className = "position-relative group-header bg-light"; // Tambah bg-light
+        newTh.innerHTML = `
+            <input type="text" class="form-control form-control-sm fw-bold text-center border-0 bg-transparent mb-1" value="Kriteria Baru" placeholder="Nama">
+            <button type="button" class="btn btn-link text-danger p-0 position-absolute top-0 end-0 me-1" style="font-size: 0.7rem; text-decoration: none;" onclick="removeColumn(this)">❌</button>
+        `;
+        headerRow.insertBefore(newTh, deleteHeaderCell);
+
+        const rows = document.getElementById('tableBody').querySelectorAll('tr');
+        rows.forEach(row => {
+            const deleteCell = row.lastElementChild;
+            const newTd = document.createElement('td');
+            newTd.innerHTML = `<input type="number" step="any" class="form-control form-control-sm text-center" placeholder="0">`;
+            row.insertBefore(newTd, deleteCell);
+        });
+    }
+
+    // 2. Hapus Kolom
+    function removeColumn(btn) {
+        const th = btn.closest('th');
+        const headerRow = document.getElementById('headerRow');
+        const index = Array.from(headerRow.children).indexOf(th);
+        
+        if (headerRow.children.length <= 4) {
+            alert("Minimal harus ada 1 kriteria.");
+            return;
+        }
+
+        th.remove();
+        const rows = document.getElementById('tableBody').querySelectorAll('tr');
+        rows.forEach(row => {
+            if (row.children[index]) row.children[index].remove();
+        });
+    }
+
+    // 3. Tambah Baris
+    function addRow() {
+        const tbody = document.getElementById('tableBody');
+        const colCount = document.getElementById('headerRow').children.length - 3; 
+        const rowCount = tbody.children.length + 1;
+
+        const tr = document.createElement('tr');
+        let html = `<td class="text-muted text-center">${rowCount}</td>
+                    <td><input type="text" class="form-control form-control-sm" placeholder="Alternatif ${rowCount}"></td>`;
+        
+        for (let i = 0; i < colCount; i++) {
+            html += `<td><input type="number" step="any" class="form-control form-control-sm text-center" placeholder="0"></td>`;
+        }
+
+        html += `<td class="text-center"><button class="btn btn-link text-danger p-0" onclick="removeRow(this)">×</button></td>`;
+        tr.innerHTML = html;
+        tbody.appendChild(tr);
+    }
+
+    // 4. Hapus Baris
+    function removeRow(btn) {
+        const row = btn.closest('tr');
+        if (document.getElementById('tableBody').children.length > 1) {
+            row.remove();
+            document.querySelectorAll('#tableBody tr').forEach((r, i) => {
+                r.firstElementChild.innerText = i + 1;
+            });
+        } else {
+            alert("Minimal harus ada 1 alternatif data.");
+        }
+    }
+
+    // 5. Submit Data
+    function prepareData(e) {
+        e.preventDefault();
+        let csvContent = "";
+        
+        const headers = ["Alternatif"]; 
+        const headerInputs = document.querySelectorAll('#headerRow th input'); 
+        headerInputs.forEach(input => headers.push(input.value.trim()));
+        csvContent += headers.join(",") + "\n";
+
+        const rows = document.querySelectorAll('#tableBody tr');
+        rows.forEach(row => {
+            let rowData = [];
+            const inputs = row.querySelectorAll('input');
+            inputs.forEach(input => rowData.push(input.value));
+            csvContent += rowData.join(",") + "\n";
+        });
+
+        document.getElementById('manualDataInput').value = csvContent;
+        e.target.submit();
+    }
+</script>
+{% endblock %}

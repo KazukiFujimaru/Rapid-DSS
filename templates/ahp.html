@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="card p-4">
+    <h3 class="mb-4">⚖️ AHP Pairwise Comparison</h3>
+    <div class="alert alert-secondary text-center small">
+        Geser ke <b>KIRI</b> jika kriteria Kiri lebih penting.<br>
+        Geser ke <b>KANAN</b> jika kriteria Kanan lebih penting.<br>
+        Tengah = Sama Penting.
+    </div>
+    
+    <form method="POST">
+        {% for i in range(criteria|length) %}
+            {% for j in range(i + 1, criteria|length) %}
+            <div class="card mb-3 p-3 shadow-sm">
+                <div class="row align-items-center text-center">
+                    <div class="col-3 fw-bold text-primary">{{ criteria[i] }}</div>
+                    
+                    <div class="col-6">
+                        <input type="range" class="form-range" 
+                               name="{{ criteria[i] }}_vs_{{ criteria[j] }}" 
+                               min="-9" max="9" step="1" value="0" 
+                               oninput="updateLabel(this, 'lbl_{{i}}_{{j}}')">
+                        
+                        <div class="small text-muted mt-1" id="lbl_{{i}}_{{j}}">Sama Penting</div>
+                    </div>
+                    
+                    <div class="col-3 fw-bold text-success">{{ criteria[j] }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        {% endfor %}
+        
+        <button type="submit" class="btn btn-primary w-100 mt-3">Proses AHP &rarr;</button>
+    </form>
+</div>
+
+<script>
+    // Script sederhana untuk update label saat slider digeser
+    function updateLabel(input, labelId) {
+        const val = parseInt(input.value);
+        const label = document.getElementById(labelId);
+        
+        if (val === 0) {
+            label.innerHTML = "Sama Penting (1)";
+            label.className = "small text-muted mt-1 fw-bold";
+        } else if (val < 0) {
+            label.innerHTML = "⬅️ Kiri Lebih Penting (" + Math.abs(val) + ")";
+            label.className = "small text-primary mt-1 fw-bold";
+        } else {
+            label.innerHTML = "Kanan Lebih Penting (" + val + ") ➡️";
+            label.className = "small text-success mt-1 fw-bold";
+        }
+    }
+</script>
+{% endblock %}

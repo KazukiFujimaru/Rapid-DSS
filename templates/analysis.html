@@ -1,0 +1,382 @@
+{% extends "base.html" %}
+{% block body %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<div class="container-fluid pb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+        <div>
+            <h3 class="fw-bold mb-0">🔍 Analisis Keputusan Mendalam</h3>
+            <p class="text-muted small mb-0">Eksplorasi sensitivitas, perbandingan kandidat, dan validasi metode.</p>
+        </div>
+        <a href="{{ url_for('result') }}" class="btn btn-outline-secondary btn-sm">&larr; Kembali ke Dashboard</a>
+    </div>
+
+    <ul class="nav nav-tabs mb-4" id="analysisTab" role="tablist">
+        <li class="nav-item">
+            <button class="nav-link active fw-bold" id="sensitivity-tab" data-bs-toggle="tab" data-bs-target="#sensitivity" type="button">🎚️ Sensitivity Analysis</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link fw-bold" id="headtohead-tab" data-bs-toggle="tab" data-bs-target="#headtohead" type="button">⚔️ Head-to-Head Comparison</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link fw-bold" id="methods-tab" data-bs-toggle="tab" data-bs-target="#methods" type="button">🤖 Method Robustness</button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="analysisTabContent">
+        
+        <div class="tab-pane fade show active" id="sensitivity">
+            <div class="row g-4">
+                <div class="col-lg-4">
+                    <div class="card shadow-sm border-0 bg-white">
+                        <div class="card-header bg-dark text-white fw-bold d-flex justify-content-between">
+                            <span>🎛️ Kontrol Bobot</span>
+                            <span class="badge bg-warning text-dark" id="totalPercent">100%</span>
+                        </div>
+                        <div class="card-body">
+                            <p class="small text-muted mb-3">Geser slider untuk simulasi "What-If". Bobot otomatis seimbang (Auto-balancing).</p>
+                            <form id="sensitivityForm">
+                                {% for k, v in weights.items() %}
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <label class="fw-bold small">{{ k }}</label>
+                                        <span class="badge bg-primary weight-badge" id="badge_{{k}}">{{ "%.1f"|format(v*100) }}%</span>
+                                    </div>
+                                    <input type="range" class="form-range weight-slider" id="slider_{{k}}" name="{{k}}" min="0" max="100" step="0.1" value="{{ (v*100)|round(1) }}">
+                                </div>
+                                {% endfor %}
+                                <div class="d-grid mt-3">
+                                     <button type="button" class="btn btn-outline-danger btn-sm" onclick="location.reload()">Reset Default</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-8">
+                    <div class="card shadow-sm border-0 mb-4">
+                        <div class="card-body">
+                            <div style="height: 250px; position: relative;">
+                                <canvas id="liveChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card shadow border-primary border-2">
+                        <div class="card-header bg-primary text-white fw-bold">🏆 Ranking Prediksi (Real-time)</div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive w-100" id="liveTableContainer">
+                                <div class="text-center p-4">Memuat data...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="headtohead">
+            <div class="card shadow-sm p-4 border-0">
+                <div class="row align-items-end mb-4">
+                    <div class="col-md-5">
+                        <label class="fw-bold text-primary">Kandidat A (Base)</label>
+                        <select id="selectA" class="form-select form-select-lg" onchange="updateHeadToHead()">
+                            </select>
+                    </div>
+                    <div class="col-md-2 text-center">
+                        <h2 class="text-muted fw-bold">VS</h2>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="fw-bold text-danger">Kandidat B (Challenger)</label>
+                        <select id="selectB" class="form-select form-select-lg" onchange="updateHeadToHead()">
+                            </select>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-lg-6">
+                        <div class="card h-100 border-0 bg-light">
+                            <div class="card-body">
+                                <h6 class="text-center fw-bold mb-3">Visualisasi Profil</h6>
+                                <div style="height: 300px;">
+                                    <canvas id="compareRadar"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="card h-100 border-0">
+                            <div class="card-body p-0">
+                                <h6 class="fw-bold mb-3">Perbandingan Detail & Skor (Metode: {{ current_method }})</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-bordered table-striped text-center align-middle" id="compareTable">
+                                        <thead class="table-dark">
+                                            <tr>
+                                                <th>Parameter</th>
+                                                <th class="text-primary" id="thA">A</th>
+                                                <th class="text-danger" id="thB">B</th>
+                                                <th>Selisih</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="compareBody">
+                                            </tbody>
+                                        <tfoot class="table-light fw-bold" id="compareFooter">
+                                            </tfoot>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="methods">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="fw-bold mb-0">🤖 Perbandingan Metode</h5>
+                        <p class="text-muted small mb-0">Pilih dua metode untuk memvalidasi konsistensi hasil.</p>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <select id="method1" class="form-select form-select-sm" onchange="updateMethodComparison()">
+                            </select>
+                        <span class="align-self-center fw-bold">VS</span>
+                        <select id="method2" class="form-select form-select-sm" onchange="updateMethodComparison()">
+                            </select>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle text-center">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Alternatif</th>
+                                    <th id="thMethod1">Metode 1</th>
+                                    <th id="thMethod2">Metode 2</th>
+                                    <th>Status Konsistensi</th>
+                                    <th>Delta Skor</th>
+                                </tr>
+                            </thead>
+                            <tbody id="methodBody">
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- DATA DARI BACKEND ---
+    const rawData = JSON.parse('{{ json_raw | safe }}');
+    const normData = JSON.parse('{{ json_norm | safe }}');
+    const methodsData = {{ methods_data | tojson }}; // Data Skor & Rank semua metode
+    const criteriaType = {{ criteria_type | tojson }}; // {'Harga': 'cost', 'RAM': 'benefit'}
+    const currentMethod = "{{ current_method }}"; 
+    const alternatives = Object.keys(rawData);
+    const criteriaList = Object.keys(criteriaType);
+    const availableMethods = Object.keys(methodsData);
+
+    // --- INISIALISASI DROPDOWN ---
+    function initDropdowns() {
+        // A. Head-to-Head Selects
+        const selA = document.getElementById('selectA');
+        const selB = document.getElementById('selectB');
+        alternatives.forEach((alt, idx) => {
+            selA.add(new Option(alt, alt, false, idx === 0));
+            selB.add(new Option(alt, alt, false, idx === 1));
+        });
+
+        // B. Method Selects (Robustness)
+        const m1 = document.getElementById('method1');
+        const m2 = document.getElementById('method2');
+        
+        // Tambahkan Opsi Kosong untuk Method 2
+        m2.add(new Option("-- Pilih Metode Pembanding --", "", true, true));
+        m2.options[0].disabled = true; // Biar ga bisa dipilih balik
+
+        availableMethods.forEach((m) => {
+            // Method 1 Default = Current Method
+            const isCurrent = m === currentMethod;
+            m1.add(new Option(m, m, false, isCurrent));
+            
+            // Method 2 Isi semua opsi
+            m2.add(new Option(m, m));
+        });
+        
+        // Panggil update pertama kali HANYA jika m2 sudah terpilih (tapi karena default kosong, tabel akan kosong/hidden dulu)
+        // Kita modifikasi updateMethodComparison biar handle kalau m2 kosong
+        updateMethodComparison();
+    }
+    // --- 1. SENSITIVITY LOGIC (Tetap sama) ---
+    const ctxLive = document.getElementById('liveChart').getContext('2d');
+    let liveChart = new Chart(ctxLive, { type: 'bar', data: {labels:[], datasets:[]}, options: {responsive:true, maintainAspectRatio:false, scales:{y:{beginAtZero:true}}} });
+    
+    // (Kode Slider Sensitivity sama seperti sebelumnya, dipersingkat di sini agar muat)
+    // ... [Paste logika slider & fetch API sensitivity disini atau biarkan dari kode sebelumnya] ...
+    // Agar tidak duplikat panjang, asumsikan logika sensitivity sudah ada. 
+    // TAPI SAYA TULIS ULANG BAGIAN UTAMA AGAR JALAN:
+    const sliders = document.querySelectorAll('.weight-slider');
+    let isUpdating = false;
+    sliders.forEach(slider => {
+        slider.dataset.prevValue = slider.value;
+        slider.addEventListener('input', function() {
+            if (isUpdating) return;
+            isUpdating = true;
+            const currentVal = parseFloat(this.value);
+            const delta = currentVal - parseFloat(this.dataset.prevValue);
+            const otherSliders = Array.from(sliders).filter(s => s !== this);
+            const totalOthers = otherSliders.reduce((sum, s) => sum + parseFloat(s.value), 0);
+            
+            if (totalOthers === 0 && delta > 0) this.value = this.dataset.prevValue;
+            else {
+                otherSliders.forEach(s => {
+                    let ratio = totalOthers === 0 ? 1/otherSliders.length : parseFloat(s.value)/totalOthers;
+                    let newVal = Math.max(0, Math.min(100, parseFloat(s.value) - (delta * ratio)));
+                    s.value = newVal; s.dataset.prevValue = newVal;
+                    document.getElementById('badge_'+s.name).innerText = newVal.toFixed(1)+'%';
+                });
+                this.dataset.prevValue = currentVal;
+                document.getElementById('badge_'+this.name).innerText = currentVal.toFixed(1)+'%';
+            }
+            isUpdating = false; debouncedUpdate();
+        });
+    });
+    let debounceTimer;
+    function debouncedUpdate() { clearTimeout(debounceTimer); debounceTimer = setTimeout(sendSensitivity, 100); }
+    function sendSensitivity() {
+        let raw = {}; sliders.forEach(s => raw[s.name] = parseFloat(s.value));
+        fetch("{{ url_for('api_recalculate') }}", {method:"POST", headers:{'Content-Type':'application/json'}, body:JSON.stringify(raw)})
+        .then(r=>r.json()).then(d=>{
+            document.getElementById('liveTableContainer').innerHTML = d.html_table;
+            liveChart.data.labels = d.chart_data.labels; liveChart.data.datasets = d.chart_data.datasets; liveChart.update();
+        });
+    }
+
+
+    // --- 2. HEAD-TO-HEAD LOGIC (Updated Cost & Score) ---
+    const ctxCompare = document.getElementById('compareRadar').getContext('2d');
+    let compareChart = new Chart(ctxCompare, { type: 'radar', data: {labels:criteriaList, datasets:[]}, options: {responsive:true, maintainAspectRatio:false, scales:{r:{suggestedMin:0, suggestedMax:1}}} });
+
+    function updateHeadToHead() {
+        const altA = document.getElementById('selectA').value;
+        const altB = document.getElementById('selectB').value;
+        
+        document.getElementById('thA').innerText = altA;
+        document.getElementById('thB').innerText = altB;
+        const tbody = document.getElementById('compareBody');
+        tbody.innerHTML = '';
+
+        // A. Baris Kriteria
+        criteriaList.forEach(crit => {
+            const valA = rawData[altA][crit];
+            const valB = rawData[altB][crit];
+            const diff = valA - valB;
+            const isCost = criteriaType[crit] === 'cost';
+
+            // LOGIKA WARNA (Cost Fix):
+            // Jika Benefit: Diff > 0 (A lebih besar) -> Hijau (Bagus)
+            // Jika Cost:    Diff > 0 (A lebih mahal) -> Merah (Jelek)
+            let colorClass = 'text-muted';
+            let icon = '=';
+            
+            if (diff !== 0) {
+                if (isCost) {
+                    colorClass = diff < 0 ? 'text-success' : 'text-danger'; // Cost: Lebih kecil = Hijau
+                } else {
+                    colorClass = diff > 0 ? 'text-success' : 'text-danger'; // Benefit: Lebih besar = Hijau
+                }
+                icon = diff > 0 ? '▲' : '▼';
+            }
+
+            const tr = `<tr>
+                <td class="text-start">
+                    ${crit} 
+                    <span class="badge bg-secondary" style="font-size:0.6em">${isCost ? 'COST' : 'BENEFIT'}</span>
+                </td>
+                <td>${valA.toLocaleString('id-ID')}</td>
+                <td>${valB.toLocaleString('id-ID')}</td>
+                <td class="${colorClass} fw-bold">${icon} ${Math.abs(diff).toLocaleString('id-ID')}</td>
+            </tr>`;
+            tbody.innerHTML += tr;
+        });
+
+        // B. Baris Skor Akhir (Footer)
+        const scoreA = methodsData[currentMethod][altA]['Score'];
+        const scoreB = methodsData[currentMethod][altB]['Score'];
+        const diffScore = scoreA - scoreB;
+        const colorScore = diffScore > 0 ? 'text-success' : (diffScore < 0 ? 'text-danger' : 'text-muted');
+        
+        document.getElementById('compareFooter').innerHTML = `
+            <tr class="table-secondary">
+                <td class="text-start">🏆 TOTAL SCORE (${currentMethod})</td>
+                <td>${scoreA.toFixed(4)}</td>
+                <td>${scoreB.toFixed(4)}</td>
+                <td class="${colorScore}">${diffScore > 0 ? '▲' : (diffScore < 0 ? '▼' : '=')} ${Math.abs(diffScore).toFixed(4)}</td>
+            </tr>
+        `;
+
+        // Update Radar
+        const dataA = criteriaList.map(c => normData[altA][c]);
+        const dataB = criteriaList.map(c => normData[altB][c]);
+        compareChart.data.datasets = [
+            { label: altA, data: dataA, backgroundColor: 'rgba(54, 162, 235, 0.2)', borderColor: 'rgba(54, 162, 235, 1)', borderWidth: 2 },
+            { label: altB, data: dataB, backgroundColor: 'rgba(255, 99, 132, 0.2)', borderColor: 'rgba(255, 99, 132, 1)', borderWidth: 2 }
+        ];
+        compareChart.update();
+    }
+
+
+    // --- 3. METHOD ROBUSTNESS LOGIC (Updated) ---
+    function updateMethodComparison() {
+        const m1Name = document.getElementById('method1').value;
+        const m2Name = document.getElementById('method2').value;
+        const tbody = document.getElementById('methodBody');
+        
+        // Jika Metode 2 belum dipilih, tampilkan pesan instruksi
+        if (!m2Name) {
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">Silakan pilih metode pembanding di kolom kanan untuk melihat hasil.</td></tr>`;
+            document.getElementById('thMethod1').innerText = `Ranking ${m1Name}`;
+            document.getElementById('thMethod2').innerText = "Ranking ...";
+            return;
+        }
+
+        document.getElementById('thMethod1').innerText = `Ranking ${m1Name}`;
+        document.getElementById('thMethod2').innerText = `Ranking ${m2Name}`;
+
+        tbody.innerHTML = '';
+
+        alternatives.forEach(alt => {
+            const r1 = methodsData[m1Name][alt];
+            const r2 = methodsData[m2Name][alt];
+            
+            const isConsistent = r1['Rank'] === r2['Rank'];
+            const statusClass = isConsistent ? 'text-success' : 'text-warning';
+            const statusText = isConsistent ? '✅ Konsisten' : '⚠️ Berbeda';
+            const deltaScore = Math.abs(r1['Score'] - r2['Score']).toFixed(4);
+
+            const row = `<tr>
+                <td class="fw-bold">${alt}</td>
+                <td>
+                    <span class="badge bg-primary rounded-pill">#${r1['Rank']}</span>
+                    <small class="text-muted d-block">(${r1['Score'].toFixed(4)})</small>
+                </td>
+                <td>
+                    <span class="badge bg-info text-dark rounded-pill">#${r2['Rank']}</span>
+                    <small class="text-muted d-block">(${r2['Score'].toFixed(4)})</small>
+                </td>
+                <td class="${statusClass} fw-bold">${statusText}</td>
+                <td>${deltaScore}</td>
+            </tr>`;
+            tbody.innerHTML += row;
+        });
+    }
+
+    // RUN ON LOAD
+    document.addEventListener("DOMContentLoaded", function() {
+        initDropdowns();
+        sendSensitivity(); 
+        updateHeadToHead(); 
+        updateMethodComparison();
+    });
+</script>
+{% endblock %}
