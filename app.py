@@ -2,8 +2,7 @@ from flask import Flask
 from handlers.routes import configure_routes
 
 app = Flask(__name__)
-# Kunci rahasia untuk session (wajib agar session/data aman)
-app.secret_key = 'kunci_rahasia_rit_project'
+app.secret_key = 'rapid_dss_key'
 
 configure_routes(app)
 

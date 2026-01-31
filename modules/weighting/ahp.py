@@ -37,7 +37,7 @@ class AHPWeighting:
         # 4. LOGIKA VALIDASI BARU
         # Jika CR melebihi batas yang disetting user
         if cr > cr_threshold:
-            raise ValueError(f"Konsistensi Ratio (CR) = {cr:.4f}. Melebihi batas toleransi ({cr_threshold}). Mohon input ulang perbandingan agar lebih konsisten.")
+            raise ValueError(f"Konsistensi Ratio (CR) = {cr:.4f}. Melebihi batas toleransi ({cr_threshold}). Mohon input ulang perbandingan agar lebih konsisten atau ganti batas toleransi di menu pengaturan algoritma lanjutan di halaman sebelumnya.")
 
         # Simpan Steps
         df_mat = pd.DataFrame(mat, index=criteria, columns=criteria)

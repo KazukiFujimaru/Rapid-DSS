@@ -1,26 +1,166 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rapid DSS</title>
+    <title>Rapid DSS - Enterprise Edition</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
     <style>
-        body { background-color: #f0f2f5; padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .card { border-radius: 10px; border: none; margin-bottom: 20px; }
-        .navbar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
-        .navbar-brand { color: white !important; font-weight: bold; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8f9fa;
+        }
+
+        /* --- STEPPER NAVIGATION MODERN --- */
+        .stepper-wrapper {
+            position: relative;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 40px;
+            margin-top: 20px;
+        }
+        
+        /* Garis Penghubung (Background Line) */
+        .stepper-wrapper::before {
+            content: "";
+            position: absolute;
+            top: 20px; /* Posisi tengah vertikal lingkaran */
+            left: 5%;
+            width: 90%;
+            height: 3px;
+            background-color: #e9ecef;
+            z-index: 1;
+        }
+
+        .stepper-item {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+            z-index: 2;
+        }
+
+        /* Lingkaran Angka */
+        .step-circle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #fff;
+            border: 3px solid #e9ecef;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            color: #adb5bd;
+            transition: all 0.3s ease;
+            text-decoration: none; /* Hilangkan garis bawah link */
+            position: relative;
+        }
+
+        /* Label di bawah lingkaran */
+        .step-label {
+            margin-top: 10px;
+            font-size: 0.85rem;
+            color: #adb5bd;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        /* --- STATE: ACTIVE (Sedang di halaman ini) --- */
+        .stepper-item.active .step-circle {
+            background-color: #0d6efd; /* Biru Bootstrap */
+            border-color: #0d6efd;
+            color: #fff;
+            box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.2); /* Efek Glow */
+            cursor: default;
+        }
+        .stepper-item.active .step-label {
+            color: #0d6efd;
+        }
+
+        /* --- STATE: COMPLETED (Sudah dilewati - Bisa diklik untuk kembali) --- */
+        .stepper-item.completed .step-circle {
+            background-color: #198754; /* Hijau Sukses */
+            border-color: #198754;
+            color: #fff;
+            cursor: pointer;
+        }
+        .stepper-item.completed .step-circle:hover {
+            background-color: #157347;
+            transform: scale(1.1);
+        }
+        .stepper-item.completed .step-label {
+            color: #198754;
+        }
+
+        /* --- STATE: DISABLED (Belum sampai - Tidak bisa diklik) --- */
+        .stepper-item.disabled .step-circle {
+            background-color: #e9ecef;
+            color: #ced4da;
+            cursor: not-allowed;
+            pointer-events: none; /* KUNCI: Mematikan klik */
+        }
+
+        /* Custom Card Styles */
+        .card { border-radius: 10px; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <nav class="navbar navbar-expand-lg rounded p-3 mb-4 shadow-sm">
-            <div class="container-fluid">
-                <span class="navbar-brand mb-0 h1">Rapid DSS</span>
-            </div>
-        </nav>
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm py-3">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="#">
+                <i class="fas fa-layer-group me-2 text-primary"></i>RAPID <span class="text-primary">DSS</span>
+            </a>
+        </div>
+    </nav>
+
+    {% set current_endpoint = request.endpoint %}
+    {% set current_step = 1 %}
+
+    {% if current_endpoint == 'configure' %}
+        {% set current_step = 2 %}
+    {% elif current_endpoint in ['direct_weight_input', 'ahp_input', 'likert_input'] %}
+        {% set current_step = 3 %}
+    {% elif current_endpoint in ['result', 'analysis'] %}
+        {% set current_step = 4 %}
+    {% endif %}
+
+    <div class="container mt-5">
         
-        {% block body %} {% endblock %}
+        <div class="stepper-wrapper">
+            
+            <div class="stepper-item {% if current_step == 1 %}active{% elif current_step > 1 %}completed{% endif %}">
+                <a href="{{ url_for('index') }}" class="step-circle">1</a>
+                <div class="step-label">Data Input</div>
+            </div>
+
+            <div class="stepper-item {% if current_step == 2 %}active{% elif current_step > 2 %}completed{% else %}disabled{% endif %}">
+                <a href="{{ url_for('configure') }}" class="step-circle">2</a>
+                <div class="step-label">Configuration</div>
+            </div>
+
+            <div class="stepper-item {% if current_step == 3 %}active{% elif current_step > 3 %}completed{% else %}disabled{% endif %}">
+                <a href="{{ url_for('direct_weight_input') }}" class="step-circle">3</a>
+                <div class="step-label">Weighting</div>
+            </div>
+
+            <div class="stepper-item {% if current_step == 4 %}active{% else %}disabled{% endif %}">
+                <a href="{{ url_for('result') }}" class="step-circle">4</a>
+                <div class="step-label">Result & Analysis</div>
+            </div>
+
+        </div>
+
+        {% block body %}{% endblock %}
+
+        <footer class="mt-5 mb-3 text-center text-muted small">
+            &copy; 2026 Decision Support System v1.0 Enterprise
+        </footer>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

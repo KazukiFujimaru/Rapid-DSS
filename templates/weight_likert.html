@@ -1,29 +1,62 @@
 {% extends "base.html" %}
 {% block body %}
-<div class="card p-4 mx-auto" style="max-width: 700px;">
-    <h3 class="text-center mb-4">⭐ Likert Scale Priority</h3>
-    <p class="text-center text-muted">Berikan nilai seberapa penting kriteria berikut (1 = Tidak Penting, 5 = Sangat Penting).</p>
-    
-    <form method="POST">
-        {% for crit in criteria %}
-        <div class="card mb-3 shadow-sm border-0 bg-light">
-            <div class="card-body d-flex align-items-center justify-content-between">
-                <div class="fw-bold fs-5">{{ crit }}</div>
-                <div class="d-flex align-items-center">
-                    <span class="me-2 text-muted small">Kurang</span>
-                    <div class="btn-group" role="group">
-                        {% for i in range(1, 6) %}
-                        <input type="radio" class="btn-check" name="{{ crit }}" id="{{crit}}_{{i}}" value="{{i}}" {% if i==3 %}checked{% endif %}>
-                        <label class="btn btn-outline-primary fw-bold" for="{{crit}}_{{i}}">{{i}}</label>
-                        {% endfor %}
+
+<div class="row justify-content-center mb-4">
+    <div class="col-md-8 text-center">
+        <h3 class="fw-bold text-dark">Likert Scale Weighting</h3>
+        <p class="text-muted small">Tentukan tingkat kepentingan kriteria berdasarkan skala prioritas 1 sampai 5.</p>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white py-3 border-bottom">
+                <i class="fas fa-star-half-alt me-2 text-primary"></i><strong>Penilaian Kepentingan</strong>
+            </div>
+            
+            <div class="card-body p-4">
+                <form method="POST" action="{{ url_for('likert_input') }}">
+                    
+                    <div class="table-responsive border rounded mb-4">
+                        <table class="table table-hover table-striped align-middle mb-0 text-center">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="text-start ps-4" width="30%">Kriteria</th>
+                                    <th width="12%"><small class="text-muted d-block">Sangat<br>Rendah</small>1</th>
+                                    <th width="12%"><small class="text-muted d-block">Rendah</small>2</th>
+                                    <th width="12%"><small class="text-muted d-block">Cukup</small>3</th>
+                                    <th width="12%"><small class="text-muted d-block">Tinggi</small>4</th>
+                                    <th width="12%"><small class="text-muted d-block">Sangat<br>Tinggi</small>5</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for c in criteria %}
+                                <tr>
+                                    <td class="text-start ps-4 fw-bold text-dark">{{ c }}</td>
+                                    <td><input class="form-check-input" type="radio" name="l_{{ c }}" value="1" required></td>
+                                    <td><input class="form-check-input" type="radio" name="l_{{ c }}" value="2" required></td>
+                                    <td><input class="form-check-input" type="radio" name="l_{{ c }}" value="3" checked></td>
+                                    <td><input class="form-check-input" type="radio" name="l_{{ c }}" value="4" required></td>
+                                    <td><input class="form-check-input" type="radio" name="l_{{ c }}" value="5" required></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
-                    <span class="ms-2 text-muted small">Sangat</span>
-                </div>
+
+                    <div class="d-flex justify-content-between align-items-center">
+                        <a href="{{ url_for('configure') }}" class="btn btn-outline-secondary btn-sm">
+                            <i class="fas fa-arrow-left me-1"></i> Kembali
+                        </a>
+                        <button type="submit" class="btn btn-primary px-4 fw-bold shadow-sm">
+                            Hitung Hasil <i class="fas fa-calculator ms-2"></i>
+                        </button>
+                    </div>
+
+                </form>
             </div>
         </div>
-        {% endfor %}
-        
-        <button type="submit" class="btn btn-primary w-100 btn-lg mt-3">Hitung Bobot &rarr;</button>
-    </form>
+    </div>
 </div>
 {% endblock %}

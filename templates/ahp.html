@@ -1,55 +1,90 @@
 {% extends "base.html" %}
 {% block body %}
-<div class="card p-4">
-    <h3 class="mb-4">⚖️ AHP Pairwise Comparison</h3>
-    <div class="alert alert-secondary text-center small">
-        Geser ke <b>KIRI</b> jika kriteria Kiri lebih penting.<br>
-        Geser ke <b>KANAN</b> jika kriteria Kanan lebih penting.<br>
-        Tengah = Sama Penting.
+
+<div class="row justify-content-center mb-4">
+    <div class="col-md-8 text-center">
+        <h3 class="fw-bold text-dark">AHP Comparison</h3>
+        <p class="text-muted small">Bandingkan tingkat kepentingan antar kriteria berpasangan (Pairwise Comparison).</p>
     </div>
-    
-    <form method="POST">
-        {% for i in range(criteria|length) %}
-            {% for j in range(i + 1, criteria|length) %}
-            <div class="card mb-3 p-3 shadow-sm">
-                <div class="row align-items-center text-center">
-                    <div class="col-3 fw-bold text-primary">{{ criteria[i] }}</div>
-                    
-                    <div class="col-6">
-                        <input type="range" class="form-range" 
-                               name="{{ criteria[i] }}_vs_{{ criteria[j] }}" 
-                               min="-9" max="9" step="1" value="0" 
-                               oninput="updateLabel(this, 'lbl_{{i}}_{{j}}')">
-                        
-                        <div class="small text-muted mt-1" id="lbl_{{i}}_{{j}}">Sama Penting</div>
-                    </div>
-                    
-                    <div class="col-3 fw-bold text-success">{{ criteria[j] }}</div>
-                </div>
-            </div>
-            {% endfor %}
-        {% endfor %}
-        
-        <button type="submit" class="btn btn-primary w-100 mt-3">Proses AHP &rarr;</button>
-    </form>
 </div>
 
-<script>
-    // Script sederhana untuk update label saat slider digeser
-    function updateLabel(input, labelId) {
-        const val = parseInt(input.value);
-        const label = document.getElementById(labelId);
-        
-        if (val === 0) {
-            label.innerHTML = "Sama Penting (1)";
-            label.className = "small text-muted mt-1 fw-bold";
-        } else if (val < 0) {
-            label.innerHTML = "⬅️ Kiri Lebih Penting (" + Math.abs(val) + ")";
-            label.className = "small text-primary mt-1 fw-bold";
-        } else {
-            label.innerHTML = "Kanan Lebih Penting (" + val + ") ➡️";
-            label.className = "small text-success mt-1 fw-bold";
-        }
-    }
-</script>
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-balance-scale me-2 text-primary"></i><strong>Matriks Perbandingan Berpasangan</strong></span>
+                <span class="badge bg-light text-dark border">Skala Saaty (1-9)</span>
+            </div>
+            
+            <div class="card-body p-4">
+                
+                <form method="POST" action="{{ url_for('ahp_input') }}">
+                    
+                    {% if error %}
+                    <div class="alert alert-danger shadow-sm mb-4 border-danger">
+                        <div class="d-flex align-items-start">
+                            <i class="fas fa-times-circle fa-lg mt-1 me-3"></i>
+                            <div>
+                                <h6 class="fw-bold mb-1">Perhitungan Gagal!</h6>
+                                <p class="mb-0 small">{{ error }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="alert alert-light border small text-muted mb-4">
+                        <div class="d-flex">
+                            <i class="fas fa-info-circle mt-1 me-2 text-primary"></i>
+                            <ul class="mb-0 ps-3 list-unstyled">
+                                <li>Geser ke <strong>Kiri</strong>: Kriteria Kiri lebih penting.</li>
+                                <li>Geser ke <strong>Kanan</strong>: Kriteria Kanan lebih penting.</li>
+                                <li>Tengah (0): Sama penting (Nilai 1).</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="list-group list-group-flush border rounded mb-4">
+                        {% for i in range(matrix_size) %}
+                            {% for j in range(i + 1, matrix_size) %}
+                            <div class="list-group-item py-4">
+                                <div class="row align-items-center text-center">
+                                    
+                                    <div class="col-md-3 text-md-end">
+                                        <h6 class="mb-0 fw-bold text-dark">{{ criteria[i] }}</h6>
+                                    </div>
+
+                                    <div class="col-md-6 px-4">
+                                        <input type="range" class="form-range" 
+                                               name="c_{{ i }}_vs_{{ j }}" 
+                                               min="-9" max="9" value="0" step="1"
+                                               oninput="updateLabel(this, 'label_{{ i }}_{{ j }}')">
+                                        
+                                        <div id="label_{{ i }}_{{ j }}" class="small text-muted mt-1 fw-bold">
+                                            Sama Penting (1)
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-3 text-md-start">
+                                        <h6 class="mb-0 fw-bold text-dark">{{ criteria[j] }}</h6>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% endfor %}
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center">
+                        <a href="{{ url_for('configure') }}" class="btn btn-outline-secondary btn-sm">
+                            <i class="fas fa-arrow-left me-1"></i> Ganti Metode
+                        </a>
+                        <button type="submit" class="btn btn-primary px-4 fw-bold shadow-sm">
+                            Hitung Bobot AHP <i class="fas fa-calculator ms-2"></i>
+                        </button>
+                    </div>
+
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

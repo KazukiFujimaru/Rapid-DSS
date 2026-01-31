@@ -18,7 +18,7 @@ ds = DataStore()
 
 def configure_routes(app):
     
-    # --- 1. HOME (Hanya Upload & Fuzzy Check) ---
+    # --- 1. HOME (Upload & Manual Input) ---
     @app.route("/", methods=["GET", "POST"])
     def index():
         if request.method == "POST":
@@ -26,10 +26,21 @@ def configure_routes(app):
             
             # A. HANDLE CSV UPLOAD
             if 'file' in request.files and request.files['file'].filename != '':
-                try: df_temp = pd.read_csv(request.files['file'])
-                except Exception as e: return f"Error CSV: {e}"
+                try: 
+                    df_temp = pd.read_csv(request.files['file'])
+                except Exception as e: 
+                    return f"Error CSV: {e}"
             
+            # B. HANDLE MANUAL INPUT
+            elif 'manual_data' in request.form and request.form['manual_data'].strip():
+                raw_text = request.form['manual_data']
+                clean_text = raw_text.replace("#MODE:FUZZY#\n", "").replace("#MODE:CRISP#\n", "")
+                try: 
+                    df_temp = pd.read_csv(io.StringIO(clean_text), sep=None, engine='python')
+                except Exception as e: 
+                    return f"Error Manual Input: {e}"
             
+            # C. SIMPAN DATA
             if df_temp is not None:
                 ds.clear_data()
                 ds.df_original = df_temp
@@ -38,7 +49,7 @@ def configure_routes(app):
                     
         return render_template("index.html")
 
-    # --- 2. CONFIG (LOGIKA SETTINGS PINDAH KESINI) ---
+    # --- 2. CONFIG ---
     @app.route("/configure", methods=["GET", "POST"])
     def configure():
         if ds.df_original is None: return redirect(url_for('index'))
@@ -46,27 +57,18 @@ def configure_routes(app):
         first_col_name = ds.df_original.columns[0]
         
         if request.method == "POST":
-            # 1. Simpan Kriteria
             selected = request.form.getlist('criteria')
             valid_criteria = [c for c in selected if c != first_col_name]
             
             if not valid_criteria:
-                return "Error: Pilih minimal 1 kriteria (selain kolom Nama)."
+                return "Error: Pilih minimal 1 kriteria."
 
             ds.criteria_type = {c: request.form.get(f'type_{c}') for c in valid_criteria}
             
-            # 2. Simpan Pilihan Metode Utama
             ds.selected_methods = {
                 'weighting': request.form.get('weighting_method'), 
                 'ranking': request.form.get('ranking_method')
             }
-
-            # 3. DEBUG & SIMPAN ADVANCED SETTINGS (DISINI TEMPATNYA)
-            print("DEBUG SETTINGS DITERIMA:", {
-                'topsis_metric': request.form.get('topsis_metric'),
-                'promethee_pref': request.form.get('promethee_pref'),
-                'promethee_p': request.form.get('promethee_p')
-            })
 
             ds.method_settings = {
                 'topsis_metric': request.form.get('topsis_metric', 'euclidean'),
@@ -76,7 +78,6 @@ def configure_routes(app):
                 'ahp_cr': float(request.form.get('ahp_cr') or 0.1)
             }
             
-            # 4. Redirect ke Weighting
             w_method = ds.selected_methods['weighting']
             if w_method == 'ahp': return redirect(url_for('ahp_input'))
             elif w_method == 'likert': return redirect(url_for('likert_input'))
@@ -84,50 +85,84 @@ def configure_routes(app):
             
         return render_template("configure.html", columns=ds.df_original.columns.tolist())
 
-    # --- 3. INPUT ROUTES ---
+    # --- 3. INPUT ROUTES (FIXED PREFIXES) ---
+    
     @app.route("/direct_weight", methods=["GET", "POST"])
     def direct_weight_input():
         if request.method == "POST":
-            raw = {k: float(request.form.get(k)) for k in ds.criteria_type.keys()}
-            tot = sum(raw.values())
-            ds.weights = {k: v/tot for k, v in raw.items()} if tot > 0 else raw
-            
-            df_step = pd.DataFrame(list(raw.items()), columns=['Kriteria', 'Input Mentah']).set_index('Kriteria')
-            df_step['Bobot Ternormalisasi'] = pd.Series(ds.weights)
-            ds.weighting_steps = {'1. [Manual] Input & Normalisasi': df_step}
-            return redirect(url_for('result'))
+            # FIX: Tambahkan prefix 'w_' sesuai HTML weight_direct.html
+            try:
+                raw = {k: float(request.form.get(f'w_{k}')) for k in ds.criteria_type.keys()}
+                tot = sum(raw.values())
+                # Hindari pembagian dengan nol
+                ds.weights = {k: v/tot for k, v in raw.items()} if tot > 0 else raw
+                
+                df_step = pd.DataFrame(list(raw.items()), columns=['Kriteria', 'Input Mentah']).set_index('Kriteria')
+                df_step['Bobot Ternormalisasi'] = pd.Series(ds.weights)
+                ds.weighting_steps = {'1. [Manual] Input & Normalisasi': df_step}
+                return redirect(url_for('result'))
+            except ValueError:
+                 return render_template("weight_direct.html", criteria=list(ds.criteria_type.keys()), error="Input harus berupa angka valid.")
+                 
         return render_template("weight_direct.html", criteria=list(ds.criteria_type.keys()))
 
     @app.route("/likert", methods=["GET", "POST"])
     def likert_input():
         if request.method == "POST":
-            scores = {k: float(request.form.get(k)) for k in ds.criteria_type.keys()}
-            ds.weights, ds.weighting_steps = LikertWeighting().calculate_weight(scores)
-            return redirect(url_for('result'))
+            # FIX: Tambahkan prefix 'l_' sesuai HTML weight_likert.html
+            try:
+                scores = {k: float(request.form.get(f'l_{k}')) for k in ds.criteria_type.keys()}
+                ds.weights, ds.weighting_steps = LikertWeighting().calculate_weight(scores)
+                return redirect(url_for('result'))
+            except ValueError:
+                return render_template("weight_likert.html", criteria=list(ds.criteria_type.keys()), error="Terjadi kesalahan membaca input.")
+                
         return render_template("weight_likert.html", criteria=list(ds.criteria_type.keys()))
 
     @app.route("/ahp", methods=["GET", "POST"])
     def ahp_input():
         criteria = list(ds.criteria_type.keys())
+        n = len(criteria)
         cr_limit = ds.method_settings.get('ahp_cr', 0.1)
+        
         if request.method == "POST":
-            matrix = {c: {c: 1.0 for c in criteria} for c in criteria}
-            n = len(criteria)
-            for i in range(n):
-                for j in range(i+1, n):
-                    c1, c2 = criteria[i], criteria[j]
-                    val = int(request.form.get(f"{c1}_vs_{c2}"))
-                    v_final = abs(val) if val < 0 else (1/val if val != 0 else 1.0)
-                    if val == 0: v_final = 1.0
-                    matrix[c1][c2] = v_final
-                    matrix[c2][c1] = 1.0 / v_final
-            ds.weights, ds.weighting_steps = AHPWeighting().calculate_weight(matrix)
             try:
+                # 1. Bangun Matriks dari Input Form
+                matrix = {c: {c: 1.0 for c in criteria} for c in criteria}
+                
+                for i in range(n):
+                    for j in range(i+1, n):
+                        c1, c2 = criteria[i], criteria[j]
+                        
+                        val_str = request.form.get(f"c_{i}_vs_{j}")
+                        if val_str is None: continue # Skip jika data hilang
+                            
+                        val = int(val_str)
+                        
+                        # Logika Saaty: Ubah -9 s.d 9 menjadi bobot 1/9 s.d 9
+                        v_final = abs(val) if val < 0 else (1/val if val != 0 else 1.0)
+                        if val == 0: v_final = 1.0
+                        
+                        matrix[c1][c2] = v_final
+                        matrix[c2][c1] = 1.0 / v_final
+                
+                # 2. Hitung Bobot AHP (DENGAN TRY-EXCEPT)
+                # Catatan: calculate_weight akan me-raise ValueError jika CR > cr_limit
                 ds.weights, ds.weighting_steps = AHPWeighting().calculate_weight(matrix, cr_threshold=cr_limit)
+                
+                # Jika sukses (tidak error), lanjut ke result
                 return redirect(url_for('result'))
+            
             except ValueError as e:
-                return render_template("ahp.html", criteria=criteria, error=str(e))
-        return render_template("ahp.html", criteria=criteria)
+                # 3. TANGKAP ERROR (Konsistensi Buruk)
+                # Tampilkan kembali halaman AHP dengan pesan error merah
+                return render_template("ahp.html", criteria=criteria, error=str(e), matrix_size=n)
+                
+            except Exception as e:
+                # Tangkap error lain yang tidak terduga
+                return render_template("ahp.html", criteria=criteria, error=f"Terjadi kesalahan sistem: {str(e)}", matrix_size=n)
+                
+        return render_template("ahp.html", criteria=criteria, matrix_size=n)
 
     # --- HELPER: SELECT RANKER ---
     def get_ranker_instance(method_name):
@@ -141,15 +176,16 @@ def configure_routes(app):
     # --- 4. RESULT ---
     @app.route("/result")
     def result():
+        # 1. Validasi
         if not ds.weights: return redirect(url_for('configure'))
 
+        # 2. Hitung Ranking
         method_name = ds.selected_methods.get('ranking', 'topsis')
         ranker, algo_title = get_ranker_instance(method_name)
         
         name_col = ds.df_original.columns[0]
         data_clean = ds.df_original.set_index(name_col)[list(ds.criteria_type.keys())]
         
-        # FIX: KIRIM SETTINGS KE RANKER
         df_res, ranking_steps = ranker.rank_alternatives(
             data_clean, 
             ds.weights, 
@@ -158,6 +194,7 @@ def configure_routes(app):
         )
         ds.results = df_res
 
+        # 3. Format Tabel Rincian (Tetap HTML String)
         all_steps = {}
         if ds.weighting_steps: all_steps.update(ds.weighting_steps)
         all_steps.update(ranking_steps)
@@ -168,26 +205,51 @@ def configure_routes(app):
             if temp_df.index.name is None:
                 if any(x in k for x in ["[AHP]", "[Likert]", "Bobot"]): temp_df.index.name = "Kriteria"
                 else: temp_df.index.name = "Alternatif"
-            formatted_steps_html[k] = temp_df.reset_index().to_html(classes='table table-sm table-striped table-hover mb-0', index=False, float_format="%.4f")
+            
+            formatted_steps_html[k] = temp_df.reset_index().to_html(
+                classes='table table-bordered table-striped table-hover mb-0 text-center small', 
+                index=False, 
+                float_format="%.4f"
+            )
 
-        df_top3 = df_res.sort_values('Rank').head(3)
-        heatmap_full = list(ranking_steps.values())[0].copy()
+        # 4. Siapkan Data Heatmap (KIRIM DATAFRAME MENTAH!)
+        # Normalisasi data 0-1
+        heatmap_full = list(ranking_steps.values())[0].copy() 
         for col in heatmap_full.columns:
             mx, mn = heatmap_full[col].max(), heatmap_full[col].min()
             heatmap_full[col] = (heatmap_full[col] - mn)/(mx-mn) if mx!=mn else 1.0
-        
+
+        # Ambil Top 3
+        df_top3 = df_res.sort_values('Rank').head(3)
         heatmap_top3 = heatmap_full.loc[df_top3.index]
+
+        # Reset index agar 'Alternatif' bisa diakses sebagai kolom di Jinja2
+        # Kita TIDAK convert ke .to_html() disini!
+        heatmap_full_raw = heatmap_full.reset_index().rename(columns={heatmap_full.index.name: 'Alternatif'})
+        heatmap_top3_raw = heatmap_top3.reset_index().rename(columns={heatmap_top3.index.name: 'Alternatif'})
+        
+        # Pastikan nama kolom index konsisten (jika reset_index membuat nama 'index')
+        if 'index' in heatmap_full_raw.columns:
+             heatmap_full_raw.rename(columns={'index': 'Alternatif'}, inplace=True)
+             heatmap_top3_raw.rename(columns={'index': 'Alternatif'}, inplace=True)
+
+        # 5. Chart & Leaderboard
         chart_data = _prepare_chart_data(heatmap_top3, df_res)
 
         df_res_display = df_res.copy()
         if df_res_display.index.name is None: df_res_display.index.name = "Alternatif"
+        
+        result_html = df_res_display.reset_index().to_html(
+            classes='table table-bordered table-striped table-hover mb-0 leaderboard-table align-middle', 
+            index=False,
+            float_format="%.4f"
+        )
 
         return render_template("result.html", 
-                               result_html=df_res_display.reset_index().to_html(classes='table table-striped table-bordered mb-0 table-hover', index=False),
+                               result_html=result_html,
                                steps=formatted_steps_html,
-                               heatmap_full=heatmap_full,
-                               top3_html=df_top3.reset_index().to_html(classes='table table-sm table-borderless table-hover mb-0', index=False),
-                               heatmap_top3=heatmap_top3,
+                               heatmap_full=heatmap_full_raw, # Kirim DataFrame Asli
+                               heatmap_top3=heatmap_top3_raw, # Kirim DataFrame Asli
                                weights=ds.weights,
                                chart_data=json.dumps(chart_data),
                                algo_title=algo_title)
@@ -210,7 +272,6 @@ def configure_routes(app):
         methods_data = {}
         for m_name, m_class in methods_map.items():
             score_key = f"{m_name}_Score"
-            # FIX: Kirim settings juga ke sini jika perlu (misal PROMETHEE vs TOPSIS comparison)
             res, _ = m_class.rank_alternatives(data_clean, ds.weights, ds.criteria_type, settings=ds.method_settings)
             methods_data[m_name] = res.rename(columns={score_key: 'Score'}).to_dict(orient='index')
 
@@ -230,47 +291,58 @@ def configure_routes(app):
                                methods_data=methods_data,
                                current_method=ds.selected_methods.get('ranking','topsis').upper())
 
-    # --- 6. API: RECALCULATE ---
+    # --- 6. API: RECALCULATE (FIXED TABLE STYLE) ---
     @app.route("/api/recalculate", methods=["POST"])
     def api_recalculate():
         try:
             raw = request.json
             tot = sum(raw.values())
+            # Normalisasi bobot baru (agar total 1.0)
             new_w = {k: 1/len(raw) for k in raw} if tot==0 else {k: v/tot for k, v in raw.items()}
             
-            method_name = ds.selected_methods.get('ranking', 'topsis')
-            ranker, _ = get_ranker_instance(method_name)
-            
+            # Hitung Ulang Ranking (Simple SAW Logic untuk Simulasi Cepat)
             name_col = ds.df_original.columns[0]
-            data = ds.df_original.set_index(name_col)[list(ds.criteria_type.keys())]
+            df = ds.df_original.set_index(name_col)[list(ds.criteria_type.keys())].copy()
             
-            # FIX: Kirim settings ke Ranker
-            df_res, _ = ranker.rank_alternatives(data, new_w, ds.criteria_type, settings=ds.method_settings)
-
-            df_display = df_res.copy()
-            if df_display.index.name is None: df_display.index.name = "Alternatif"
-            df_display = df_display.reset_index()
-
-            def highlight_winner(s):
-                return ['background-color: #d1e7dd; font-weight: bold;' if s['Rank'] == 1 else '' for _ in s]
-
-            table_html = df_display.style.apply(highlight_winner, axis=1)\
-                                   .format("{:,.4f}", subset=pd.IndexSlice[:, df_display.select_dtypes(include='float').columns])\
-                                   .hide(axis="index")\
-                                   .to_html(classes='table table-striped table-hover mb-0 align-middle w-100', table_id="predictionTable")
-
-            score_col = f"{method_name.upper()}_Score"
-            fixed = df_res.sort_index()
+            scores = pd.Series(0.0, index=df.index)
             
+            # Normalisasi Data & Kali Bobot
+            for col, w in new_w.items():
+                val = df[col]
+                if ds.criteria_type.get(col) == 'cost':
+                    mn = val.min()
+                    norm = mn / val if mn > 0 else 0 
+                else:
+                    mx = val.max()
+                    norm = val / mx if mx > 0 else 0
+                scores += norm * w
+            
+            # Buat DataFrame Hasil
+            res_df = pd.DataFrame({
+                'Score': scores, 
+                'Rank': scores.rank(ascending=False).astype(int)
+            }).sort_values('Rank')
+            
+            # Gabungkan dengan Data Asli agar tabel informatif
+            final_df = ds.df_original.set_index(name_col).join(res_df[['Score', 'Rank']], how='inner').sort_values('Rank')
+            
+            # FORMAT TABEL AGAR PROFESIONAL (Bootstrap Classes)
+            table_html = final_df.reset_index().to_html(
+                classes='table table-bordered table-striped table-hover mb-0 text-center small align-middle',
+                index=False,
+                float_format="%.4f",
+                table_id="simTable"
+            )
+
+            # Data untuk Chart
             chart = {
-                'labels': fixed.index.tolist(),
+                'labels': res_df.index.tolist(),
                 'datasets': [{
-                    'label': f'Skor ({method_name.upper()})', 
-                    'data': fixed[score_col].tolist(), 
+                    'label': 'Skor Simulasi', 
+                    'data': res_df['Score'].tolist(), 
                     'backgroundColor': 'rgba(54, 162, 235, 0.6)', 
-                    'borderColor': 'blue', 
-                    'borderWidth': 1, 
-                    'fill': True
+                    'borderColor': '#0d6efd', 
+                    'borderWidth': 1
                 }]
             }
             

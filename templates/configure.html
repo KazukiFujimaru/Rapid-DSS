@@ -1,184 +1,190 @@
 {% extends "base.html" %}
 {% block body %}
-<div class="card shadow-sm p-4">
-    <h3 class="mb-3">⚙️ Konfigurasi & Parameter Metode</h3>
-    <p class="text-muted">Tentukan jenis kriteria (Cost/Benefit) dan sesuaikan parameter algoritma jika diperlukan.</p>
-    
-    <form method="POST">
-        
-        <div class="table-responsive mb-4">
-            <table class="table table-hover border">
-                <thead class="table-light">
-                    <tr>
-                        <th width="5%">Pilih</th>
-                        <th>Nama Kriteria (Kolom)</th>
-                        <th width="30%">Tipe Atribut</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for col in columns %}
-                    {% if not loop.first %} <tr>
-                        <td class="text-center">
-                            <input class="form-check-input" type="checkbox" name="criteria" value="{{ col }}" checked>
-                        </td>
-                        <td class="fw-bold">{{ col }}</td>
-                        <td>
-                            <select name="type_{{ col }}" class="form-select form-select-sm">
-                                <option value="benefit">Benefit (Makin Besar = Bagus)</option>
-                                <option value="cost">Cost (Makin Kecil = Bagus)</option>
-                            </select>
-                        </td>
-                    </tr>
-                    {% endif %}
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
 
-        <div class="row g-3 mb-4">
-            <div class="col-md-6">
-                <label class="form-label fw-bold">Metode Pembobotan (Weighting)</label>
-                <select name="weighting_method" class="form-select">
-                    <option value="direct">Input Manual (Direct Rating)</option>
-                    <option value="ahp">AHP (Pairwise Comparison)</option>
-                    <option value="likert">Likert Scale (Rating 1-5)</option>
-                </select>
-            </div>
-            <div class="col-md-6">
-                <label class="form-label fw-bold">Metode Perankingan (Ranking)</label>
-                <select name="ranking_method" id="rankingMethod" class="form-select" onchange="updateAdvancedOptions()">
-                    <option value="topsis">TOPSIS (Ideal Solution)</option>
-                    <option value="promethee">PROMETHEE (Outranking)</option> <option value="saw">SAW (Simple Additive Weighting)</option>
-                    <option value="wp">WP (Weighted Product)</option>
-                    <option value="moora">MOORA (Ratio Analysis)</option>
-                    <option value="smart">SMART (Utility Theory)</option>
-                </select>
-            </div>
-        </div>
-
-        <div class="accordion mb-4" id="advancedAccordion">
-            <div class="accordion-item">
-                <h2 class="accordion-header" id="headingAdv">
-                    <button class="accordion-button collapsed bg-light text-dark fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAdv">
-                        🛠️ Pengaturan Algoritma Lanjutan (Advanced)
-                    </button>
-                </h2>
-                <div id="collapseAdv" class="accordion-collapse collapse" data-bs-parent="#advancedAccordion">
-                    <div class="accordion-body bg-light">
-                        
-                        <div id="opt_topsis" class="method-option">
-                            <h6 class="fw-bold text-primary">Parameter TOPSIS</h6>
-                            <div class="row g-3 align-items-center">
-                                <div class="col-md-4">
-                                    <label class="small text-muted">Metric Jarak (Distance):</label>
-                                    <select name="topsis_metric" class="form-select form-select-sm">
-                                        <option value="euclidean" selected>Euclidean (Default)</option>
-                                        <option value="manhattan">Manhattan (City Block)</option>
-                                        <option value="chebyshev">Chebyshev (Max Deviation)</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-8">
-                                    <small class="text-muted d-block mt-3">
-                                        *Euclidean cocok untuk data umum. Manhattan lebih robust terhadap outlier.
-                                    </small>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div id="opt_promethee" class="method-option" style="display:none;">
-                            <h6 class="fw-bold text-primary">Parameter PROMETHEE</h6>
-                            <div class="row g-3">
-                                <div class="col-md-4">
-                                    <label class="small text-muted">Tipe Fungsi Preferensi:</label>
-                                    <select name="promethee_pref" class="form-select form-select-sm" onchange="toggleThreshold(this.value)">
-                                        <option value="usual" selected>Tipe 1: Usual (Strict 0/1)</option>
-                                        <option value="linear">Tipe 5: Linear (Gradual)</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="small text-muted">Output Ranking:</label>
-                                    <select name="promethee_type" class="form-select form-select-sm">
-                                        <option value="ii" selected>PROMETHEE II (Net Flow / Complete)</option>
-                                        <option value="i">PROMETHEE I (Partial Ranking)</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-4" id="promethee_threshold_box" style="display:none;">
-                                    <label class="small text-muted">Threshold Preferensi (p):</label>
-                                    <input type="number" name="promethee_p" class="form-control form-control-sm" placeholder="Contoh: 1000" value="0">
-                                    <small class="text-muted" style="font-size: 0.7em;">Selisih min. agar dominan mutlak.</small>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div id="opt_ahp" class="method-option" style="display:none;">
-                            <h6 class="fw-bold text-primary">Parameter AHP (Analytic Hierarchy Process)</h6>
-                            <div class="row align-items-center">
-                                <div class="col-md-5">
-                                    <label class="small text-muted">Batas Toleransi Konsistensi (CR Threshold):</label>
-                                    <select name="ahp_cr" class="form-select form-select-sm">
-                                        <option value="0.1" selected>0.1 (Strict / Standar Saaty)</option>
-                                        <option value="0.2">0.2 (Longgar / Moderat)</option>
-                                        <option value="1.0">Abaikan Konsistensi (Paksa Hitung)</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-7">
-                                    <small class="text-muted">
-                                        Jika CR > Batas, sistem akan meminta input ulang. Pilih "Abaikan" untuk tetap memproses bobot yang tidak konsisten.
-                                    </small>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div id="opt_default" class="method-option" style="display:none;">
-                            <p class="text-muted small mb-0">Tidak ada parameter khusus untuk metode ini. Menggunakan pengaturan standar.</p>
-                        </div>
-
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="d-flex justify-content-end">
-            <button type="submit" class="btn btn-primary btn-lg px-5">Lanjut ke Pembobotan &rarr;</button>
-        </div>
-    </form>
+<div class="row justify-content-center mb-4">
+    <div class="col-md-8 text-center">
+        <h3 class="fw-bold text-dark">Algorithm Configuration</h3>
+        <p class="text-muted small">Tentukan kriteria, atribut biaya/keuntungan, dan pilih metode analisis.</p>
+    </div>
 </div>
 
-<script>
-    function updateAdvancedOptions() {
-        // Ambil Metode Ranking & Weighting
-        const rankMethod = document.getElementById('rankingMethod').value;
-        const weightMethod = document.querySelector('select[name="weighting_method"]').value; // FIX selector
-        
-        // Reset Display
-        document.querySelectorAll('.method-option').forEach(el => el.style.display = 'none');
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white py-3 border-bottom">
+                <i class="fas fa-sliders-h me-2 text-primary"></i><strong>Pengaturan Parameter</strong>
+            </div>
+            
+            <div class="card-body p-4">
+                <form method="POST">
+                    
+                    <h6 class="fw-bold text-secondary mb-3"><i class="fas fa-list-check me-2"></i>Atribut Kriteria</h6>
+                    <div class="table-responsive mb-4 rounded border">
+                        <table class="table table-hover table-sm align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th width="5%" class="text-center">#</th>
+                                    <th>Nama Kriteria</th>
+                                    <th width="35%">Tipe Atribut</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for col in columns %}
+                                {% if not loop.first %} 
+                                <tr>
+                                    <td class="text-center">
+                                        <div class="form-check d-flex justify-content-center">
+                                            <input class="form-check-input" type="checkbox" name="criteria" value="{{ col }}" checked>
+                                        </div>
+                                    </td>
+                                    <td class="fw-bold text-dark">{{ col }}</td>
+                                    <td>
+                                        <select name="type_{{ col }}" class="form-select form-select-sm border-secondary-subtle">
+                                            <option value="benefit">Benefit (Makin Besar = Bagus)</option>
+                                            <option value="cost">Cost (Makin Kecil = Bagus)</option>
+                                        </select>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
 
-        // Logic Tampilan
-        if (rankMethod === 'topsis') {
-            document.getElementById('opt_topsis').style.display = 'block';
-        } else if (rankMethod === 'promethee') {
-            document.getElementById('opt_promethee').style.display = 'block';
-        }
+                    <hr class="my-4 text-muted opacity-25">
 
-        // Tampilkan AHP Setting jika Weighting = AHP (Independen dari ranking)
-        if (weightMethod === 'ahp') {
-            document.getElementById('opt_ahp').style.display = 'block';
-        }
-    }
-    
-    // PENTING: Tambahkan event listener untuk dropdown weighting juga
-    document.querySelector('select[name="weighting_method"]').addEventListener('change', updateAdvancedOptions);
+                    <h6 class="fw-bold text-secondary mb-3"><i class="fas fa-calculator me-2"></i>Metode Analisis</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted">Metode Pembobotan (Weighting)</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-secondary-subtle"><i class="fas fa-balance-scale"></i></span>
+                                <select name="weighting_method" class="form-select border-secondary-subtle">
+                                    <option value="direct">Input Manual (Direct Rating)</option>
+                                    <option value="ahp">AHP (Pairwise Comparison)</option>
+                                    <option value="likert">Likert Scale (Rating 1-5)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted">Metode Perankingan (Ranking)</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-secondary-subtle"><i class="fas fa-trophy"></i></span>
+                                <select name="ranking_method" id="rankingMethod" class="form-select border-secondary-subtle">
+                                    <option value="topsis">TOPSIS (Ideal Solution)</option>
+                                    <option value="promethee">PROMETHEE (Outranking)</option>
+                                    <option value="saw">SAW (Simple Additive Weighting)</option>
+                                    <option value="wp">WP (Weighted Product)</option>
+                                    <option value="moora">MOORA (Ratio Analysis)</option>
+                                    <option value="smart">SMART (Utility Theory)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
 
-    function toggleThreshold(prefType) {
-        const box = document.getElementById('promethee_threshold_box');
-        if (prefType === 'linear') {
-            box.style.display = 'block';
-        } else {
-            box.style.display = 'none';
-        }
-    }
+                    <div class="accordion mb-4" id="advancedAccordion">
+                        <div class="accordion-item border-secondary-subtle">
+                            <h2 class="accordion-header" id="headingAdv">
+                                <button class="accordion-button collapsed bg-light text-secondary fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAdv">
+                                    <i class="fas fa-microchip me-2"></i> Pengaturan Algoritma Lanjutan (Advanced)
+                                </button>
+                            </h2>
+                            <div id="collapseAdv" class="accordion-collapse collapse" data-bs-parent="#advancedAccordion">
+                                <div class="accordion-body bg-white">
+                                    
+                                    <div id="opt_default" class="text-center text-muted py-3">
+                                        <i class="fas fa-check-circle fa-2x mb-3 text-secondary opacity-25"></i>
+                                        <p class="small mb-0">Metode yang dipilih menggunakan konfigurasi standar.<br>Tidak ada parameter khusus yang perlu diatur.</p>
+                                    </div>
 
-    // Jalankan sekali saat load
-    document.addEventListener("DOMContentLoaded", updateAdvancedOptions);
-</script>
-{% endblock %}  
+                                    <div id="opt_topsis" class="method-option" style="display:none;">
+                                        <h6 class="fw-bold text-primary small border-bottom pb-2 mb-3">Parameter TOPSIS</h6>
+                                        <div class="row g-3 align-items-center">
+                                            <div class="col-md-5">
+                                                <label class="small text-muted fw-bold">Metric Jarak (Distance):</label>
+                                                <select name="topsis_metric" class="form-select form-select-sm">
+                                                    <option value="euclidean" selected>Euclidean (Default)</option>
+                                                    <option value="manhattan">Manhattan (City Block)</option>
+                                                    <option value="chebyshev">Chebyshev (Max Deviation)</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-7">
+                                                <div class="alert alert-light border small text-muted mb-0 py-2">
+                                                    <i class="fas fa-info-circle me-1"></i> Euclidean direkomendasikan untuk data umum.
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div id="opt_promethee" class="method-option" style="display:none;">
+                                        <h6 class="fw-bold text-primary small border-bottom pb-2 mb-3">Parameter PROMETHEE II</h6>
+                                        <div class="row g-3 mb-3">
+                                            <div class="col-md-12">
+                                                <label class="small text-muted fw-bold">Tipe Fungsi Preferensi:</label>
+                                                <select name="promethee_pref" id="prom_pref_select" class="form-select form-select-sm">
+                                                    <option value="usual" selected>Tipe 1: Usual (Strict 0/1)</option>
+                                                    <option value="ushape">Tipe 2: U-Shape (Quasi)</option>
+                                                    <option value="vshape">Tipe 3: V-Shape (Linear Direct)</option>
+                                                    <option value="level">Tipe 4: Level (Bertingkat)</option>
+                                                    <option value="linear">Tipe 5: Linear w/ Indifference</option>
+                                                    <option value="gaussian">Tipe 6: Gaussian</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="row g-3">
+                                            <div class="col-md-4" id="box_q" style="display:none;">
+                                                <label class="small text-muted fw-bold">Indifference (q):</label>
+                                                <input type="number" step="0.01" name="promethee_q" class="form-control form-control-sm" placeholder="Contoh: 5" value="0">
+                                            </div>
+                                            <div class="col-md-4" id="box_p" style="display:none;">
+                                                <label class="small text-muted fw-bold">Preference (p):</label>
+                                                <input type="number" step="0.01" name="promethee_p" class="form-control form-control-sm" placeholder="Contoh: 20" value="0">
+                                            </div>
+                                            <div class="col-md-4" id="box_s" style="display:none;">
+                                                <label class="small text-muted fw-bold">Sigma (s):</label>
+                                                <input type="number" step="0.01" name="promethee_s" class="form-control form-control-sm" placeholder="Contoh: 10" value="0">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div id="opt_ahp" class="method-option" style="display:none;">
+                                        <h6 class="fw-bold text-primary small border-bottom pb-2 mb-3">Parameter AHP</h6>
+                                        <div class="row align-items-center">
+                                            <div class="col-md-6">
+                                                <label class="small text-muted fw-bold">Batas Toleransi (CR):</label>
+                                                <select name="ahp_cr" class="form-select form-select-sm">
+                                                    <option value="0.1" selected>0.1 (Strict - Saaty)</option>
+                                                    <option value="0.2">0.2 (Moderat)</option>
+                                                    <option value="1.0">Abaikan Konsistensi</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if error %}
+                    <div class="alert alert-danger small shadow-sm mb-4">
+                        <i class="fas fa-exclamation-triangle me-1"></i> {{ error }}
+                    </div>
+                    {% endif %}
+
+                    <div class="d-flex justify-content-between align-items-center mt-4">
+                        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary px-4 fw-bold">
+                            <i class="fas fa-arrow-left me-2"></i> Kembali
+                        </a>
+                        <button type="submit" class="btn btn-primary px-5 py-2 fw-bold shadow-sm">
+                            Lanjut ke Pembobotan <i class="fas fa-arrow-right ms-2"></i>
+                        </button>
+                    </div>
+
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

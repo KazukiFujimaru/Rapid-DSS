@@ -1,86 +1,99 @@
 import pandas as pd
 import numpy as np
+import math
 from modules.base import RankingStrategy
 
 class PrometheeRanking(RankingStrategy):
     def rank_alternatives(self, data: pd.DataFrame, weights: dict, criteria_type: dict, **kwargs) -> tuple[pd.DataFrame, dict]:
         settings = kwargs.get('settings', {})
+        
+        # Ambil Parameter
         pref_type = settings.get('promethee_pref', 'usual')
-        p_threshold = float(settings.get('promethee_p', 0))
+        p_val = float(settings.get('promethee_p') or 0)
+        q_val = float(settings.get('promethee_q') or 0) # Parameter baru
+        s_val = float(settings.get('promethee_s') or 0) # Parameter baru
         
         df = data.copy()
         alternatives = df.index.tolist()
         criteria = list(weights.keys())
         steps = {}
         
-        # Matriks Preferensi (Aggregated)
-        # Struktur: Baris=Alt A, Kolom=Alt B, Nilai=Seberapa besar A mengalahkan B (0-1)
+        # Inisialisasi Matriks Preferensi
         pref_matrix = pd.DataFrame(0.0, index=alternatives, columns=alternatives)
-        
-        # Detail perhitungan per kriteria (disimpan untuk debug/advanced view)
-        # Kita hitung pairwise comparison
         
         for crit in criteria:
             w = weights[crit]
             is_benefit = criteria_type[crit] == 'benefit'
             
-            # Loop Pairwise
-            for a in alternatives:
-                val_a = df.loc[a, crit]
-                for b in alternatives:
-                    if a == b: continue
+            col_data = df[crit].to_numpy() # Optimisasi pakai NumPy array biar cepat
+            
+            # Loop manual masih oke untuk data kecil (Rapid-DSS)
+            # Tapi kita gunakan logika fungsi preferensi yang lengkap
+            for i, a in enumerate(alternatives):
+                val_a = col_data[i]
+                for j, b in enumerate(alternatives):
+                    if i == j: continue
+                    val_b = col_data[j]
                     
-                    val_b = df.loc[b, crit]
+                    # 1. Hitung Selisih (d)
+                    d = (val_a - val_b) if is_benefit else (val_b - val_a)
                     
-                    # Hitung Selisih (d)
-                    if is_benefit:
-                        d = val_a - val_b
-                    else:
-                        d = val_b - val_a # Cost: Kalau A lebih kecil dari B, A menang (d positif)
-                    
-                    # Hitung P(d) berdasarkan Tipe Fungsi
+                    # 2. Hitung Nilai Preferensi P(d)
                     pref_val = 0.0
                     
                     if d <= 0:
                         pref_val = 0.0
                     else:
-                        if pref_type == 'usual':
-                            # Tipe 1: Strict (Menang sedikit = Menang total)
+                        if pref_type == 'usual': # Tipe 1
                             pref_val = 1.0
-                        elif pref_type == 'linear':
-                            # Tipe 5: Linear (Menang bertahap sampai threshold p)
-                            if d >= p_threshold:
-                                pref_val = 1.0
+                        
+                        elif pref_type == 'ushape': # Tipe 2 (Quasi)
+                            pref_val = 1.0 if d > q_val else 0.0
+                            
+                        elif pref_type == 'vshape': # Tipe 3 (Linear Criterion)
+                            pref_val = d / p_val if (p_val > 0 and d <= p_val) else 1.0
+                            
+                        elif pref_type == 'level': # Tipe 4 (Level)
+                            if d <= q_val: pref_val = 0.0
+                            elif d <= p_val: pref_val = 0.5
+                            else: pref_val = 1.0
+                            
+                        elif pref_type == 'linear': # Tipe 5 (Linear w/ Indifference)
+                            if d <= q_val: pref_val = 0.0
+                            elif d <= p_val: pref_val = (d - q_val) / (p_val - q_val) if (p_val - q_val) != 0 else 1.0
+                            else: pref_val = 1.0
+                            
+                        elif pref_type == 'gaussian': # Tipe 6 (Gaussian)
+                            if s_val != 0:
+                                pref_val = 1 - math.exp(-(d**2) / (2 * (s_val**2)))
                             else:
-                                pref_val = d / p_threshold if p_threshold != 0 else 1.0
+                                pref_val = 1.0 # Fallback jika s=0
                     
-                    # Tambahkan ke matriks agregat (dikali bobot)
-                    pref_matrix.loc[a, b] += pref_val * w
+                    # Akumulasi ke matriks global
+                    pref_matrix.iloc[i, j] += pref_val * w
 
         steps['1. Matriks Preferensi Agregat (Pi)'] = pref_matrix.copy()
 
-        # Hitung Leaving & Entering Flow
-        # Leaving (Phi+): Rata-rata baris (Kekuatan mengalahkan orang lain)
-        # Entering (Phi-): Rata-rata kolom (Kelemahan dikalahkan orang lain)
-        
+        # Hitung Flows (PROMETHEE II)
         n = len(alternatives)
-        leaving_flow = pref_matrix.sum(axis=1) / (n - 1)
-        entering_flow = pref_matrix.sum(axis=0) / (n - 1)
-        
+        if n > 1:
+            leaving_flow = pref_matrix.sum(axis=1) / (n - 1)
+            entering_flow = pref_matrix.sum(axis=0) / (n - 1)
+        else:
+            leaving_flow = pd.Series(0, index=alternatives)
+            entering_flow = pd.Series(0, index=alternatives)
+            
         net_flow = leaving_flow - entering_flow
         
         df_flows = pd.DataFrame({
-            'Leaving Flow (Phi+)': leaving_flow,
-            'Entering Flow (Phi-)': entering_flow,
+            'Leaving (Phi+)': leaving_flow,
+            'Entering (Phi-)': entering_flow,
             'Net Flow (Phi)': net_flow
         })
         
-        steps['2. Leaving, Entering, & Net Flow'] = df_flows.copy()
+        steps['2. Flows Calculation'] = df_flows.copy()
         
-        # PROMETHEE Score = Net Flow
-        # Normalisasi Net Flow ke range 0-1 (Opsional, tapi Net Flow asli -1 s/d 1)
-        # Kita pakai Net Flow asli saja untuk ranking
-        
+        # Final Ranking
         df['PROMETHEE_Score'] = net_flow
         df['Rank'] = df['PROMETHEE_Score'].rank(ascending=False).astype(int)
         
